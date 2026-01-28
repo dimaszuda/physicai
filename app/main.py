@@ -1,5 +1,20 @@
+import sys
+from pathlib import Path
+
+# Add parent directory to path to allow imports from core and other modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import streamlit as st
 from components.student_answer import add_student
+from core.evaluator import Evaluator
+from core.processor import Processor
+from core.prompt import Prompt
+from core.schema import LLMSchema
+
+prompt_schema = Prompt()
+schema = LLMSchema()
+process = Processor()
+evaluator = Evaluator()
 
 st.set_page_config(
     page_title="Physicai",
@@ -10,7 +25,7 @@ if "students" not in st.session_state:
     st.session_state.students = []
 
 st.title("Physicai")
-st.header("Low Effort Phyiscs Essay Assesment Evaluation")
+st.header("Low Effort with High Accuracy. AI-Based Phycis Exam Evaluator")
 
 st.text_input("Nama Ujian")
 kelas = st.selectbox(
@@ -19,21 +34,20 @@ kelas = st.selectbox(
 )
 st.text_input("Group Kelas", placeholder="IPA 1")
 
-tab_full_ai, tab_with_keys, tab_with_rubrics = st.tabs([
-    "Full AI",
-    "Evaluate with Keys",
-    "Evaluate with Rubrics"
-])
+method = st.selectbox(
+    "Pilih Metode Evaluasi",
+    ("Full AI", "Evaluate with Keys", "Evaluate with Rubrics")
+)
 
-with tab_full_ai:
-    st.write("Evaluate Student Physics Essay Assessment using full AI. " \
-    "Let AI decide the correct answer and step by step process.")
-    st.write("NOTE: AI may cause incorrect evaluation because its hallucination. \
-             You can switch to others tab to provide keys/rubrics above to get more precise evaluation score.")
+if method == "Full AI":
+    st.write("Use full AI to evaluate student physics essay assessments. \
+             Let the AI determine the correct answer and the step-by-step process.")
+    st.write("Note that AI may produce an incorrect evaluation due to hallucinations. \
+             You can switch to the other method and provide the keys or rubrics above to get a more precise evaluation score.")
 
-    
+
     left, right = st.columns([2, 1])  # Hapus vertical_alignment
-    
+
     with left:
         with st.container(border=True): 
             st.subheader("Upload Exam Question and Student Answer here")
@@ -55,17 +69,28 @@ with tab_full_ai:
                     "files": []
                 })
                 st.rerun()
-    
+
     with right:
         with st.container(border=True):
             st.subheader("Tentukan Bobot untuk setiap aspek penilaian")
             step_by_step_weight = st.slider("Bobot untuk proses perhitungan", 0, 10)
             final_answer_weight = st.slider("Bobot untuk jawaban akhir", 0, 10)
-    
-    if st.button("Start Evaluate", key="button full ai"):
-        pass
 
-with tab_with_keys:
+    if st.button("Start Evaluate", key="button full ai"):
+        if upload_question is not None and st.session_state.students is not None:
+            with st.spinner("Parsing question... this may take a while."):
+                soal_soal = evaluator.parse_question(
+                    question=upload_question,
+                    process=process,
+                    schema=schema,
+                    prompt=prompt_schema
+                )
+            if soal_soal is not None:
+                st.text_area("response", value=soal_soal)
+            else:
+                st.text_area("response", value="Error")
+
+elif method == "Evaluate with Keys":
     st.write("Provide answer keys correspond to the exam questions and decide what weight used to score the answer")
 
     uploader, parameter = st.columns([2, 1])
@@ -107,7 +132,7 @@ with tab_with_keys:
     if st.button("Start Evaluate", key="button with keys"):
         pass
 
-with tab_with_rubrics:
+elif method == "Evaluate with Rubrics":
     st.write("Provide Assesment Rubrics correspond to the exam questions to get more precise assesment score")
     
     st.subheader("Upload soal, rubrik penilaian dan jawaban siswa disini")
@@ -140,4 +165,4 @@ with tab_with_rubrics:
     if st.button("Start Evaluate", key="button with rubrics"):
         pass
 
-    
+    #TODO: HARUS DIBUAT 1 TAB SAJA NANTI DIKASIH PILIHAN METODE EVALUASI
