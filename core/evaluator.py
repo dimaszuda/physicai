@@ -43,19 +43,7 @@ class Evaluator:
             for file in question:
                 if file.type == 'application/pdf':
                     parts = process.read_pdf(file.read())
-                    response = self.client.models.generate_content(
-                        model="gemini-2.5-flash",
-                        contents=[  
-                            *parts,
-                            prompt.question_prompt()
-                        ],
-                        config={
-                            "response_mime_type": "application/json",
-                            "response_json_schema": schema.question_schema(),
-                        }
-                    )
-                    parsed = json.loads(response.text)
-                    soal_soal["question"].extend([question for question in parsed.get("question", [])])
+                    soal_img.extend(parts)
                 elif file.type == 'image/jpeg':
                     part = process.read_img(file.read(), mime_type=file.type)
                     soal_img.append(part)
@@ -92,20 +80,8 @@ class Evaluator:
             for answer in answers:
                 if answer.type == "application/pdf":
                     parts = process.read_pdf(answer.read())
-                    response = self.client.models.generate_content(
-                        model="gemini-2.5-flash",
-                        contents=[  
-                            *parts,
-                            prompt.full_ai_prompt(soal)
-                        ],
-                        config={
-                            "response_mime_type": "application/json",
-                            "response_json_schema": schema.full_ai_schema(),
-                        }
-                    )
-                    return json.loads(response.text)
+                    answer_img.extend(parts)
                 elif answer.type == 'image/jpeg':
-                    print("open image")
                     part = process.read_img(answer.read(), mime_type=answer.type)
                     answer_img.append(part)
 
@@ -119,7 +95,7 @@ class Evaluator:
                         ],
                         config={
                             "response_mime_type": "application/json",
-                            "response_json_schema": schema.full_ai_schema(),
+                            "response_json_schema": schema.score_schema(),
                         }
                     )
                     print(response.text)
@@ -127,3 +103,79 @@ class Evaluator:
         except Exception as e:
             print(f"Error occured: {e}")
             return None
+
+    def parsing_keys(
+            self,
+            keys,
+            prompt,
+            schema,
+            process
+    ):
+        key_imgs = []
+        key_result = []
+        try:
+            for key in keys:
+                if key.type == "application/pdf":
+                    parts = process.read_pdf(key.read())
+                    key_imgs.extend(parts)
+                elif key.type == "image/jpeg":
+                    parts = process.read_img(key.read(), mime_type=key.type)
+                    key_imgs.extend(parts)
+            
+            if key_imgs is not None:
+                response = self.client.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=[  
+                            *key_imgs,
+                            prompt.extract_key()
+                        ],
+                        config={
+                            "response_mime_type": "application/json",
+                            "response_json_schema": schema.key_schema(),
+                        }
+                    )
+                return json.loads(response.text)
+        except Exception as e:
+            print(f"Error Occured: {e}")
+            return None
+        
+    def with_keys(
+            self,
+            soal,
+            answers,
+            keys,
+            prompt,
+            schema,
+            process
+    ):
+        soal = json.dumps(soal)
+        keys = json.dumps(keys)
+        answer_img = []
+
+        try:
+            for answer in answers:
+                if answer.type == "application/pdf":
+                    parts = process.read_pdf(answer.read())
+                    answer_img.extend(parts)
+                elif answer.type == "image/jpeg":
+                    parts = process.read_img(answer.read(), mime_type=answer.type)
+                    answer_img.extend(parts)
+                
+                if answer_img is not None:
+                    response = self.client.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=[  
+                            *answer_img,
+                            prompt.scoring_key_prompt(soal, keys)
+                        ],
+                        config={
+                            "response_mime_type": "application/json",
+                            "response_json_schema": schema.score_schema(),
+                        }
+                    )
+
+                    return json.loads(response.text)
+        except Exception as e:
+            print(f"Error occured: {e}")
+            return None
+        

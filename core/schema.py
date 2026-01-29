@@ -39,7 +39,7 @@ class LLMSchema:
         }
 
     @staticmethod
-    def full_ai_schema():
+    def score_schema():
         return {
             "type": "object",
             "properties": {
@@ -68,5 +68,61 @@ class LLMSchema:
                 }
                 }
             },
-            "required": ["answers"]
+            "required": ["scores"]
         }
+    
+    @staticmethod
+    def key_schema():
+        return {
+            "type": "object",
+            "properties": {
+                "keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "nomor_soal": {
+                                "type": "integer"
+                            },
+                            "diketahui": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "variable": { "type": "string" },
+                                        "value": { "type": "string" },
+                                        "unit": { "type": "string" }
+                                    },
+                                    "required": ["variable", "value"]
+                                }
+                            },
+                            "ditanya": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "dijawab": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "step": { "type": "string" },
+                                        "formula": { "type": "string" },
+                                        "calculation": { "type": "string" },
+                                    },
+                                    "required": ["step", "formula"]
+                                }
+                            },
+                            "jawaban_akhir": {
+                                "type": "string"
+                            }
+
+                        },
+                        "required": ["nomor_soal", "diketahui", "ditanya", "dijawab", "jawaban_akhir"]
+                    }
+                }
+            },
+            "required": ["keys"]
+        }
+

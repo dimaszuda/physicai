@@ -162,9 +162,51 @@ elif method == "Evaluate with Keys":
                     prompt=prompt_schema
                 )
             if soal_soal is not None:
-                st.text_area("response", value=soal_soal)
+                st.text_area(
+                    "response",
+                    value=json.dumps(soal_soal, indent=2, ensure_ascii=False),
+                    height=400
+                )
             else:
                 st.text_area("response", value="Error")
+            
+            with st.spinner("Parsing answer key... This may take a while"):
+                keys = evaluator.parsing_keys(
+                    keys=upload_keys,
+                    prompt=prompt_schema,
+                    schema=schema,
+                    process=process
+                )
+
+            if keys is not None:
+                st.text_area(
+                    "response",
+                    value=json.dumps(keys, indent=2, ensure_ascii=False),
+                    height=400
+                )
+            else:
+                st.text_area("response", value="Error")
+
+            with st.spinner("Parsing student answer... this may take a while"):
+                for idx, student in enumerate(st.session_state.students):
+                    print(f"Student: {student}")
+                    with st.spinner(f"Scoring student absent {idx+1}"):
+                        score = evaluator.with_keys(
+                            soal=soal_soal,
+                            answers=student["files"],
+                            prompt=prompt_schema,
+                            keys=keys,
+                            schema=schema,
+                            process=process
+                        )
+                    if score is not None:
+                        st.text_area(
+                            f"Score Absen {idx+1}",
+                            value=json.dumps(score, indent=2, ensure_ascii=False),
+                            height=400
+                        )
+                    else:
+                        st.text("None")
 
 elif method == "Evaluate with Rubrics":
     st.write("Provide Assesment Rubrics correspond to the exam questions to get more precise assesment score")
@@ -196,7 +238,7 @@ elif method == "Evaluate with Rubrics":
         st.rerun()
      
 
-    if st.button("Start Evaluate", key="button full ai"):
+    if st.button("Start Evaluate", key="button with rubrics"):
         if upload_question is not None and st.session_state.students is not None:
             with st.spinner("Parsing question... this may take a while."):
                 soal_soal = evaluator.parse_question(
@@ -206,6 +248,48 @@ elif method == "Evaluate with Rubrics":
                     prompt=prompt_schema
                 )
             if soal_soal is not None:
-                st.text_area("response", value=soal_soal)
+                st.text_area(
+                    "response",
+                    value=json.dumps(soal_soal, indent=2, ensure_ascii=False),
+                    height=400
+                )
             else:
                 st.text_area("response", value="Error")
+            
+            with st.spinner("Parsing answer key... This may take a while"):
+                keys = evaluator.parsing_keys(
+                    keys=upload_keys,
+                    prompt=prompt_schema,
+                    schema=schema,
+                    process=process
+                )
+
+            if keys is not None:
+                st.text_area(
+                    "response",
+                    value=json.dumps(keys, indent=2, ensure_ascii=False),
+                    height=400
+                )
+            else:
+                st.text_area("response", value="Error")
+
+            with st.spinner("Parsing student answer... this may take a while"):
+                for idx, student in enumerate(st.session_state.students):
+                    print(f"Student: {student}")
+                    with st.spinner(f"Scoring student absent {idx+1}"):
+                        score = evaluator.with_keys(
+                            soal=soal_soal,
+                            answers=student["files"],
+                            prompt=prompt_schema,
+                            keys=keys,
+                            schema=schema,
+                            process=process
+                        )
+                    if score is not None:
+                        st.text_area(
+                            f"Score Absen {idx+1}",
+                            value=json.dumps(score, indent=2, ensure_ascii=False),
+                            height=400
+                        )
+                    else:
+                        st.text("None")
