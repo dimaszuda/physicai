@@ -46,3 +46,4 @@ def add_student(student, method):
         for pdf in pdfs:
             pdf.seek(0)
             st.pdf(pdf)
+

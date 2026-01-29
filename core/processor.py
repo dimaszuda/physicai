@@ -1,6 +1,5 @@
 import fitz
 from google.genai import types  
-from io import BytesIO
 
 class Processor:  
     def read_pdf(self, file_soal):
@@ -8,7 +7,6 @@ class Processor:
         zoom_x, zoom_y = 2.0, 2.0
         mat = fitz.Matrix(zoom_x, zoom_y)
 
-        # Handle both file paths and bytes
         if isinstance(file_soal, bytes):
             docs = fitz.open(stream=file_soal, filetype="pdf")
         else:   
@@ -29,7 +27,6 @@ class Processor:
         return parts
 
     def read_img(self, file_soal, mime_type: str = "image/jpeg"):
-        # Handle both file paths and bytes and return a types.Part
         if isinstance(file_soal, bytes):
             data = file_soal
         else:
@@ -40,4 +37,5 @@ class Processor:
             data=data,
             mime_type=mime_type
         )
+        
         

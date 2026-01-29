@@ -38,5 +38,35 @@ class LLMSchema:
             "required": ["question"]
         }
 
-    def key_schema():
-        pass
+    @staticmethod
+    def full_ai_schema():
+        return {
+            "type": "object",
+            "properties": {
+                "scores": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                    "question_number": {
+                        "type": "integer"
+                    },
+                    "final_answer_score": {
+                        "type": "integer",
+                    },
+                    "basic_concept_score": {
+                        "type": "integer"
+                    },
+                    "step_by_step_score": {
+                        "type": "integer"
+                    },
+                    "mistake": {
+                        "type": "string"
+                    }
+                    },
+                    "required": ["question_number", "final_answer_score", "basic_concept_score", "step_by_step_score"]
+                }
+                }
+            },
+            "required": ["answers"]
+        }

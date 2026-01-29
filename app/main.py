@@ -1,4 +1,5 @@
 import sys
+import json
 from pathlib import Path
 
 # Add parent directory to path to allow imports from core and other modules
@@ -45,8 +46,7 @@ if method == "Full AI":
     st.write("Note that AI may produce an incorrect evaluation due to hallucinations. \
              You can switch to the other method and provide the keys or rubrics above to get a more precise evaluation score.")
 
-
-    left, right = st.columns([2, 1])  # Hapus vertical_alignment
+    left, right = st.columns([2, 1])
 
     with left:
         with st.container(border=True): 
@@ -86,9 +86,32 @@ if method == "Full AI":
                     prompt=prompt_schema
                 )
             if soal_soal is not None:
-                st.text_area("response", value=soal_soal)
+                st.text_area(
+                    "response",
+                    value=json.dumps(soal_soal, indent=2, ensure_ascii=False),
+                    height=400
+                )
             else:
                 st.text_area("response", value="Error")
+            with st.spinner("Parsing answer... this may take a while"):
+                for idx, student in enumerate(st.session_state.students):
+                    print(f"Student: {student}")
+                    with st.spinner(f"Scoring student absent {idx+1}"):
+                        score = evaluator.full_ai(
+                            soal=soal_soal,
+                            answers=student["files"],
+                            prompt=prompt_schema,
+                            schema=schema,
+                            process=process
+                        )
+                    if score is not None:
+                        st.text_area(
+                            f"Score Absen {idx+1}",
+                            value=json.dumps(score, indent=2, ensure_ascii=False),
+                            height=400
+                        )
+                    else:
+                        st.text("None")
 
 elif method == "Evaluate with Keys":
     st.write("Provide answer keys correspond to the exam questions and decide what weight used to score the answer")
@@ -130,7 +153,18 @@ elif method == "Evaluate with Keys":
             answer_weight = st.slider("Bobot untuk \"Dijawab\"", 0, 10)
 
     if st.button("Start Evaluate", key="button with keys"):
-        pass
+        if upload_question is not None and st.session_state.students is not None:
+            with st.spinner("Parsing question... this may take a while."):
+                soal_soal = evaluator.parse_question(
+                    question=upload_question,
+                    process=process,
+                    schema=schema,
+                    prompt=prompt_schema
+                )
+            if soal_soal is not None:
+                st.text_area("response", value=soal_soal)
+            else:
+                st.text_area("response", value="Error")
 
 elif method == "Evaluate with Rubrics":
     st.write("Provide Assesment Rubrics correspond to the exam questions to get more precise assesment score")
@@ -162,7 +196,16 @@ elif method == "Evaluate with Rubrics":
         st.rerun()
      
 
-    if st.button("Start Evaluate", key="button with rubrics"):
-        pass
-
-    #TODO: HARUS DIBUAT 1 TAB SAJA NANTI DIKASIH PILIHAN METODE EVALUASI
+    if st.button("Start Evaluate", key="button full ai"):
+        if upload_question is not None and st.session_state.students is not None:
+            with st.spinner("Parsing question... this may take a while."):
+                soal_soal = evaluator.parse_question(
+                    question=upload_question,
+                    process=process,
+                    schema=schema,
+                    prompt=prompt_schema
+                )
+            if soal_soal is not None:
+                st.text_area("response", value=soal_soal)
+            else:
+                st.text_area("response", value="Error")
