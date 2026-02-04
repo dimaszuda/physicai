@@ -72,3 +72,53 @@ class Prompt:
 
             Berikan skor 0–10 untuk masing-masing aspek.
             """
+    
+    @staticmethod
+    def detect_rubric_prompt():
+        return f"""
+        Analisis dan identifikasi tipe rubrik penilaian soal essay fisika. Apakah rubrik tersebut holistik, analitik atau komponen.
+        """
+    
+    @staticmethod
+    def extract_rubric(keys):
+        return f"""
+            Kamu adalah asisten ahli evaluasi pendidikan Fisika.
+            Tugasmu adalah mengekstrak RUBRIK PENILAIAN dari kunci jawaban atau rubrik yang disediakan guru.
+
+            TUGAS UTAMA:
+            1. Ekstrak bobot, kriteria, atau deskripsi kualitas jawaban sesuai yang tertulis.
+            2. Jangan mengarang bobot atau kriteria yang tidak eksplisit.
+
+            INPUT:
+            {keys}
+
+            OUTPUT:
+            Keluarkan hasil ekstraksi rubrik dalam format JSON sesuai schema yang diberikan.
+            Jangan melakukan penilaian jawaban siswa.
+            Jangan menghasilkan skor.
+        """
+    
+    @staticmethod
+    def scoring_rubric_prompt(soal, rubrics):
+        return f"""
+            Kamu adalah asisten guru Fisika yang menilai jawaban ujian siswa secara objektif dan adil.
+            ATURAN PENILAIAN:
+            - Gunakan bobot, kriteria, atau deskripsi kualitas yang tertulis pada rubrik.
+            - Perbedaan urutan langkah, notasi, atau bentuk rumus tidak dianggap salah jika ekuivalen secara fisika.
+            - Rumus turunan dan rumus langsung dianggap setara jika sah secara konsep.
+            - Berikan skor parsial jika rubrik memungkinkan.
+            - Catat kesalahan hanya jika ada kesalahan konsep, rumus tidak ekuivalen, kesalahan matematika, atau kesimpulan fisika keliru.
+
+            TUGAS:
+            Nilai jawaban siswa dari gambar berdasarkan:
+            {soal}
+            {rubrics}
+
+            LANGKAH PENILAIAN (IMPLISIT):
+            - Cocokkan jawaban siswa dengan rubrik.
+            - Hitung skor sesuai bobot atau kualitas jawaban.
+            - Normalisasikan skor ke skala 0–10 per aspek.
+
+            KELUARAN:
+            Hanya keluarkan JSON sesuai schema yang diberikan.
+        """

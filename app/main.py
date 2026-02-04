@@ -26,7 +26,7 @@ if "students" not in st.session_state:
     st.session_state.students = []
 
 st.title("Physicai")
-st.header("Low Effort with High Accuracy. AI-Based Phycis Exam Evaluator")
+st.header("Low Effort with High Accuracy. AI-Based Physics Exam Evaluator")
 
 st.text_input("Nama Ujian")
 kelas = st.selectbox(
@@ -211,33 +211,33 @@ elif method == "Evaluate with Keys":
 elif method == "Evaluate with Rubrics":
     st.write("Provide Assesment Rubrics correspond to the exam questions to get more precise assesment score")
     
-    st.subheader("Upload soal, rubrik penilaian dan jawaban siswa disini")
+    with st.container(border=True):
+        st.subheader("Upload soal, rubrik penilaian dan jawaban siswa disini")
 
-    upload_question = st.file_uploader(
-        "Upload Soal Ujian", 
-        key="question_uploader_rubrics",
-        accept_multiple_files=True,
-        type=["pdf", "jpg", "png", "jpeg"]
-    )
-    upload_keys = st.file_uploader(
-        "Upload Kunci Jawaban", 
-        key="keys_uploader_rubrics",
-        accept_multiple_files=True,
-        type=["pdf", "jpg", "png", "jpeg"]
-    )
+        upload_question = st.file_uploader(
+            "Upload Soal Ujian", 
+            key="question_uploader_rubrics",
+            accept_multiple_files=True,
+            type=["pdf", "jpg", "png", "jpeg"]
+        )
+        upload_keys = st.file_uploader(
+            "Upload Kunci Jawaban", 
+            key="keys_uploader_rubrics",
+            accept_multiple_files=True,
+            type=["pdf", "jpg", "png", "jpeg"]
+        )
 
-    st.write("Add student answer")
-    for student in st.session_state.students:
-        add_student(student, "rubrics") 
-    
-    if st.button("Add Student", key="add with rubrics"):
-        st.session_state.students.append({
-            "id": len(st.session_state.students) + 1,
-            "files": []
-        })
-        st.rerun()
+        st.write("Add student answer")
+        for student in st.session_state.students:
+            add_student(student, "rubrics") 
+        
+        if st.button("Add Student", key="add with rubrics"):
+            st.session_state.students.append({
+                "id": len(st.session_state.students) + 1,
+                "files": []
+            })
+            st.rerun()
      
-
     if st.button("Start Evaluate", key="button with rubrics"):
         if upload_question is not None and st.session_state.students is not None:
             with st.spinner("Parsing question... this may take a while."):
@@ -256,40 +256,51 @@ elif method == "Evaluate with Rubrics":
             else:
                 st.text_area("response", value="Error")
             
-            with st.spinner("Parsing answer key... This may take a while"):
-                keys = evaluator.parsing_keys(
+            with st.spinner("Detect scoring rubrics type... This may take a while"):
+                rubric_type = evaluator.detect_rubric(
                     keys=upload_keys,
                     prompt=prompt_schema,
                     schema=schema,
                     process=process
                 )
 
-            if keys is not None:
-                st.text_area(
-                    "response",
-                    value=json.dumps(keys, indent=2, ensure_ascii=False),
-                    height=400
-                )
-            else:
-                st.text_area("response", value="Error")
+            if rubric_type is not None:
+                if rubric_type["rubric_type"] == "hollistik":
+                    schema_rubrics = schema.hollistik_schema()
+                    schema_scores = schema.rubrics_score()
+                elif rubric_type["rubric_type"] == "analitik":
+                    schema_rubrics = schema.analytic_schema()
+                    schema_scores = schema.rubrics_score()
+                elif rubric_type["rubric_type"] == "component":
+                    schema_rubrics = schema.component_schema()
+                    schema_scores = schema.component_score()
 
-            with st.spinner("Parsing student answer... this may take a while"):
-                for idx, student in enumerate(st.session_state.students):
-                    print(f"Student: {student}")
-                    with st.spinner(f"Scoring student absent {idx+1}"):
-                        score = evaluator.with_keys(
-                            soal=soal_soal,
-                            answers=student["files"],
-                            prompt=prompt_schema,
-                            keys=keys,
-                            schema=schema,
-                            process=process
-                        )
-                    if score is not None:
-                        st.text_area(
-                            f"Score Absen {idx+1}",
-                            value=json.dumps(score, indent=2, ensure_ascii=False),
-                            height=400
-                        )
-                    else:
-                        st.text("None")
+                with st.spinner("Parsing scoring rubric... This may take a while"):
+                    rubrics = evaluator.parsing_rubrics(
+                        keys=upload_keys,
+                        prompt=prompt_schema,
+                        schema_rubrics=schema_rubrics,
+                        process=process
+                    )
+            
+            if rubrics is not None:
+                with st.spinner("Parsing student answer... this may take a while"):
+                    for idx, student in enumerate(st.session_state.students):
+                        print(f"Student: {student}")
+                        with st.spinner(f"Scoring student absent {idx+1}"):
+                            score = evaluator.with_rubrics(
+                                soal=soal_soal,
+                                answers=student["files"],
+                                prompt=prompt_schema,
+                                rubrics=rubrics,
+                                schema_scores=schema_scores,
+                                process=process
+                            )
+                        if score is not None:
+                            st.text_area(
+                                f"Score Absen {idx+1}",
+                                value=json.dumps(score, indent=2, ensure_ascii=False),
+                                height=400
+                            )
+                        else:
+                            st.text("None")

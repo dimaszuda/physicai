@@ -179,3 +179,114 @@ class Evaluator:
             print(f"Error occured: {e}")
             return None
         
+    def detect_rubric(
+            self,
+            keys,
+            prompt,
+            schema,
+            process
+    ):
+        keys = json.dumps(keys)
+
+        try:
+            key = keys[0]
+            if key.type == "application/pdf":
+                key_img = process.read_pdf(key.read())
+            elif key.type == "image/jpeg":
+                key_img = process.read_img(key.read(), mime_type=key.type)
+            
+            if key_img is not None:
+                response = self.client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=[
+                        types.Part.from_bytes(
+                            data=key_img,
+                            mime_type="image/jpeg",
+                        ),
+                        prompt.detect_rubric_prompt()
+                    ],
+                    config= {
+                        "response_mime_type": "application/json",
+                        "response_json_schema": schema.detect_rubric_schema(),
+                    }
+                )
+
+                return json.loads(response.text)
+        except Exception as e:
+            print(f"Error occured: {e}")
+            return None
+    
+    def parsing_rubrics(
+            self,
+            keys,
+            prompt,
+            schema_rubrics,
+            process,
+    ):
+        key_imgs = []
+        key_result = []
+        try:
+            for key in keys:
+                if key.type == "application/pdf":
+                    parts = process.read_pdf(key.read())
+                    key_imgs.extend(parts)
+                elif key.type == "image/jpeg":
+                    parts = process.read_img(key.read(), mime_type=key.type)
+                    key_imgs.extend(parts)
+            
+            if key_imgs is not None:
+                response = self.client.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=[  
+                            *key_imgs,
+                            prompt.extract_rubric()
+                        ],
+                        config={
+                            "response_mime_type": "application/json",
+                            "response_json_schema": schema_rubrics,
+                        }
+                    )
+                return json.loads(response.text)
+        except Exception as e:
+            print(f"Error Occured: {e}")
+            return None
+        
+    def with_rubrics(
+            self,
+            soal,
+            answers,
+            rubrics,
+            prompt,
+            schema_scores,
+            process
+    ):
+        soal = json.dumps(soal)
+        rubrics = json.dumps(rubrics)
+        answer_img = []
+
+        try:
+            for answer in answers:
+                if answer.type == "application/pdf":
+                    parts = process.read_pdf(answer.read())
+                    answer_img.extend(parts)
+                elif answer.type == "image/jpeg":
+                    parts = process.read_img(answer.read(), mime_type=answer.type)
+                    answer_img.extend(parts)
+                
+                if answer_img is not None:
+                    response = self.client.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=[
+                            *answer_img,
+                            prompt.scoring_rubric_prompt(soal, rubrics)
+                        ],
+                        config={
+                            "response_mime_type": "application/json",
+                            "response_json_schema": schema_scores,
+                        }
+                    )
+
+                    return json.loads(response.text)
+        except Exception as e:
+            print(f"Error occured: {e}")
+            return None
