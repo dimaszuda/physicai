@@ -51,6 +51,7 @@ class Prompt:
             3. Fokus utama penilaian proses adalah:
             - konsistensi logika fisika,
             - kesesuaian konsep,
+            - satuan nilai,
             - keterhubungan antar langkah,
             bukan kemiripan tekstual dengan kunci jawaban.
             4. Kesalahan hanya boleh diberikan jika:
@@ -65,9 +66,10 @@ class Prompt:
             {kunci_jawaban}
 
             Berikan skor pada aspek-aspek berikut:
-            - final_answer_score: skor dari jawaban akhir yang benar, baik dari segi nilai maupun satuan.
-            - basic_concept_score: skor pemahaman siswa terhadap konsep dasar fisika yang digunakan.
-            - step_by_step_score: skor berdasarkan kualitas proses berpikir siswa. Proses dianggap baik jika logis, runtut, dan sesuai fisika, meskipun berbeda urutan atau bentuk dengan kunci jawaban.
+            - score_diketahui: berikan skor untuk aspek diketahui, analisis apakah siswa menuliskan semua variabel yang diketahui di soal.
+            - score_ditanya: analisis apakah siswa memahami apa yang ditanyakan pada soal dan apa yang harus dia cari
+            - score_dijawab: skor berdasarkan proses mencari jawaban. Proses dianggap baik jika logis, runtut, dan sesuai fisika, meskipun berbeda urutan atau bentuk dengan kunci jawaban.
+            - score_jawaban_akhir: skor dari jawaban akhir yang benar, baik dari segi nilai atau satuan.
             - mistake: analisis kesalahan siswa secara spesifik. Jika tidak ada kesalahan konseptual atau perhitungan, tuliskan: "Tidak ada kesalahan ditemukan".
 
             Berikan skor 0–10 untuk masing-masing aspek.
@@ -106,7 +108,6 @@ class Prompt:
             - Gunakan bobot, kriteria, atau deskripsi kualitas yang tertulis pada rubrik.
             - Perbedaan urutan langkah, notasi, atau bentuk rumus tidak dianggap salah jika ekuivalen secara fisika.
             - Rumus turunan dan rumus langsung dianggap setara jika sah secara konsep.
-            - Berikan skor parsial jika rubrik memungkinkan.
             - Catat kesalahan hanya jika ada kesalahan konsep, rumus tidak ekuivalen, kesalahan matematika, atau kesimpulan fisika keliru.
 
             TUGAS:
@@ -117,7 +118,7 @@ class Prompt:
             LANGKAH PENILAIAN (IMPLISIT):
             - Cocokkan jawaban siswa dengan rubrik.
             - Hitung skor sesuai bobot atau kualitas jawaban.
-            - Normalisasikan skor ke skala 0–10 per aspek.
+            - Jangan membuat bobot dan rentang nilai skor sendiri. nilai selalu mengacu pada rubrik penilaian.
 
             KELUARAN:
             Hanya keluarkan JSON sesuai schema yang diberikan.

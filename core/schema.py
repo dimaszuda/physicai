@@ -300,23 +300,23 @@ class LLMSchema:
                             "question_number": {
                                 "type": "integer"
                             },
-                            "diketahui": {
+                            "score_diketahui": {
                                 "type": "integer",
                             },
-                            "ditanya": {
+                            "score_ditanya": {
                                 "type": "integer"
                             },
-                            "dijawab": {
+                            "score_dijawab": {
                                 "type": "integer"
                             },
-                            "jawaban_akhir": {
+                            "score_jawaban_akhir": {
                                 "type": "integer"
                             },
                             "mistake": {
                                 "type": "string"
                             }
                         },
-                        "required": ["question_number", "diketahui", "ditanya", "dijawab"]
+                        "required": ["question_number", "score_diketahui", "score_ditanya", "score_dijawab", "score_jawaban_akhir"]
                     }
                 }
             },

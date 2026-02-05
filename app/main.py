@@ -1,21 +1,24 @@
 import sys
 import json
+from io import BytesIO
 from pathlib import Path
 
 # Add parent directory to path to allow imports from core and other modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import streamlit as st
-from components.student_answer import add_student
-from core.evaluator import Evaluator
-from core.processor import Processor
 from core.prompt import Prompt
 from core.schema import LLMSchema
+from core.evaluator import Evaluator
+from core.processor import Processor
+from core.post_processing import PostProcessing
+from components.student_answer import add_student
 
 prompt_schema = Prompt()
 schema = LLMSchema()
 process = Processor()
 evaluator = Evaluator()
+post_processing = PostProcessing()
 
 st.set_page_config(
     page_title="Physicai",
@@ -28,12 +31,12 @@ if "students" not in st.session_state:
 st.title("Physicai")
 st.header("Low Effort with High Accuracy. AI-Based Physics Exam Evaluator")
 
-st.text_input("Nama Ujian")
+nama_ujian = st.text_input("Nama Ujian")
 kelas = st.selectbox(
     "Kelas",
     ("X", "XI", "XII")
 )
-st.text_input("Group Kelas", placeholder="IPA 1")
+group = st.text_input("Group Kelas", placeholder="IPA 1")
 
 method = st.selectbox(
     "Pilih Metode Evaluasi",
@@ -73,8 +76,11 @@ if method == "Full AI":
     with right:
         with st.container(border=True):
             st.subheader("Tentukan Bobot untuk setiap aspek penilaian")
-            step_by_step_weight = st.slider("Bobot untuk proses perhitungan", 0, 10)
-            final_answer_weight = st.slider("Bobot untuk jawaban akhir", 0, 10)
+            basic_concept_weight = st.slider("Bobot untuk Konsep Dasar", 1, 10)
+            step_by_step_weight = st.slider("Bobot untuk proses perhitungan", 1, 10)
+            final_answer_weight = st.slider("Bobot untuk jawaban akhir", 1, 10)
+    
+    responses = []
 
     if st.button("Start Evaluate", key="button full ai"):
         if upload_question is not None and st.session_state.students is not None:
@@ -95,7 +101,6 @@ if method == "Full AI":
                 st.text_area("response", value="Error")
             with st.spinner("Parsing answer... this may take a while"):
                 for idx, student in enumerate(st.session_state.students):
-                    print(f"Student: {student}")
                     with st.spinner(f"Scoring student absent {idx+1}"):
                         score = evaluator.full_ai(
                             soal=soal_soal,
@@ -104,7 +109,9 @@ if method == "Full AI":
                             schema=schema,
                             process=process
                         )
+
                     if score is not None:
+                        responses.append(score)
                         st.text_area(
                             f"Score Absen {idx+1}",
                             value=json.dumps(score, indent=2, ensure_ascii=False),
@@ -112,10 +119,49 @@ if method == "Full AI":
                         )
                     else:
                         st.text("None")
+            
+            with st.spinner("Scoring student answer..."):
+                result = post_processing.process_ai(
+                    responses=responses,
+                    basic_concept_weight=basic_concept_weight,
+                    step_by_step_weight=step_by_step_weight,
+                    final_answer_weight=final_answer_weight
+                )
+
+            if result is not None:
+                # save result and bytes to session_state so they persist across reruns
+                st.session_state['last_result_df'] = result
+                buf = BytesIO()
+                result.to_excel(buf, index=False, engine="openpyxl")
+                buf.seek(0)
+                st.session_state['last_result_bytes'] = buf.getvalue()
+                st.session_state['last_result_filename'] = f"Nilai_{nama_ujian}_kelas_{kelas}_{group}_full_ai.xlsx"
+
+        # show persisted result (if any) so it doesn't disappear after download (Streamlit reruns)
+    if 'last_result_bytes' in st.session_state and st.session_state.get('last_result_filename', '').endswith('_full_ai.xlsx'):
+        with st.expander("Show score"):
+            st.dataframe(
+                st.session_state['last_result_df'].style.format(
+                    {
+                        "basic_concept_weighted": "{:.1f}",
+                        "step_by_step_weighted": "{:.1f}",
+                        "final_answer_weighted": "{:.1f}",
+                        "total_score": "{:.1f}"
+                    }
+                ).hide(axis="index"),
+                width="content"
+            )
+
+        st.download_button(
+            label="Download Result",
+            data=st.session_state['last_result_bytes'],
+            file_name=st.session_state['last_result_filename'],
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
 elif method == "Evaluate with Keys":
     st.write("Provide answer keys correspond to the exam questions and decide what weight used to score the answer")
-
+    #TODO: butuh penjelasan lebih detail tentang metode ini
     uploader, parameter = st.columns([2, 1])
 
     with uploader:
@@ -148,9 +194,12 @@ elif method == "Evaluate with Keys":
     with parameter:
         with st.container(border=True):
             st.subheader("Tentukan bobot untuk setiap aspek penilaian")
-            known_weight = st.slider("Bobot untuk \"Diketahui\"", 0, 10)
-            asked_weight = st.slider("Bobot untuk \"Ditanya\"", 0, 10)
-            answer_weight = st.slider("Bobot untuk \"Dijawab\"", 0, 10)
+            known_weight = st.slider("Bobot untuk \"Diketahui\"", 1, 10)
+            asked_weight = st.slider("Bobot untuk \"Ditanya\"", 1, 10)
+            answer_weight = st.slider("Bobot untuk \"Dijawab\"", 1, 10)
+            final_weight = st.slider("Bobot untuk jawaban akhir", 1, 10)
+
+    responses = []
 
     if st.button("Start Evaluate", key="button with keys"):
         if upload_question is not None and st.session_state.students is not None:
@@ -189,7 +238,6 @@ elif method == "Evaluate with Keys":
 
             with st.spinner("Parsing student answer... this may take a while"):
                 for idx, student in enumerate(st.session_state.students):
-                    print(f"Student: {student}")
                     with st.spinner(f"Scoring student absent {idx+1}"):
                         score = evaluator.with_keys(
                             soal=soal_soal,
@@ -200,6 +248,7 @@ elif method == "Evaluate with Keys":
                             process=process
                         )
                     if score is not None:
+                        responses.append(score)
                         st.text_area(
                             f"Score Absen {idx+1}",
                             value=json.dumps(score, indent=2, ensure_ascii=False),
@@ -207,6 +256,47 @@ elif method == "Evaluate with Keys":
                         )
                     else:
                         st.text("None")
+
+            with st.spinner("Scoring student answer..."):
+                result = post_processing.process_keys(
+                    responses=responses,
+                    known_weight=known_weight,
+                    asked_weight=asked_weight,
+                    answer_weight=answer_weight,
+                    final_weight=final_weight
+                )
+                
+            if result is not None:
+                # persist result to session_state
+                st.session_state['last_result_df'] = result
+                buf = BytesIO()
+                result.to_excel(buf, index=False, engine="openpyxl")
+                buf.seek(0)
+                st.session_state['last_result_bytes'] = buf.getvalue()
+                st.session_state['last_result_filename'] = f"Nilai_{nama_ujian}_kelas_{kelas}_{group}_with_keys.xlsx"
+
+        # show persisted result for "with keys" method
+    if 'last_result_bytes' in st.session_state and st.session_state.get('last_result_filename', '').endswith('_with_keys.xlsx'):
+        with st.expander("Show score"):
+            st.dataframe(
+                st.session_state['last_result_df'].style.format(
+                    {
+                        "skor_diketahui_dengan_bobot": "{:.2f}",
+                        "skor_ditanya_dengan_bobot": "{:.2f}",
+                        "skor_dijawab_dengan_bobot": "{:.2f}",
+                        "skor_jawaban_akhir_dengan_bobot": "{:.2f}",
+                        "total_score": "{:.2f}"
+                    }
+                ).hide(axis="index"),
+                width="content"
+            )
+
+        st.download_button(
+            label="Download Result",
+            data=st.session_state['last_result_bytes'],
+            file_name=st.session_state['last_result_filename'],
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
 elif method == "Evaluate with Rubrics":
     st.write("Provide Assesment Rubrics correspond to the exam questions to get more precise assesment score")
@@ -237,6 +327,8 @@ elif method == "Evaluate with Rubrics":
                 "files": []
             })
             st.rerun()
+
+    responses = []
      
     if st.button("Start Evaluate", key="button with rubrics"):
         if upload_question is not None and st.session_state.students is not None:
@@ -268,12 +360,15 @@ elif method == "Evaluate with Rubrics":
                 if rubric_type["rubric_type"] == "hollistik":
                     schema_rubrics = schema.hollistik_schema()
                     schema_scores = schema.rubrics_score()
+                    postprocess = post_processing.process_rubrics(responses=responses)
                 elif rubric_type["rubric_type"] == "analitik":
                     schema_rubrics = schema.analytic_schema()
                     schema_scores = schema.rubrics_score()
+                    postprocess = post_processing.process_rubrics(responses=responses)
                 elif rubric_type["rubric_type"] == "component":
                     schema_rubrics = schema.component_schema()
                     schema_scores = schema.component_score()
+                    postprocess = post_processing.process_component(responses=responses)
 
                 with st.spinner("Parsing scoring rubric... This may take a while"):
                     rubrics = evaluator.parsing_rubrics(
@@ -286,7 +381,6 @@ elif method == "Evaluate with Rubrics":
             if rubrics is not None:
                 with st.spinner("Parsing student answer... this may take a while"):
                     for idx, student in enumerate(st.session_state.students):
-                        print(f"Student: {student}")
                         with st.spinner(f"Scoring student absent {idx+1}"):
                             score = evaluator.with_rubrics(
                                 soal=soal_soal,
@@ -297,6 +391,7 @@ elif method == "Evaluate with Rubrics":
                                 process=process
                             )
                         if score is not None:
+                            responses.append(score)
                             st.text_area(
                                 f"Score Absen {idx+1}",
                                 value=json.dumps(score, indent=2, ensure_ascii=False),
@@ -304,3 +399,30 @@ elif method == "Evaluate with Rubrics":
                             )
                         else:
                             st.text("None")
+                
+                with st.spinner("Scoring student answer..."):
+                    if rubric_type["rubric_type"] == "hollistik" or rubric_type["rubric_type"] == "analitik":
+                        result = post_processing.process_rubrics(responses=responses)
+                    elif rubric_type["rubric_type"] == "component":
+                        result = post_processing.process_component(responses=responses)
+                
+                if result is not None:
+                    # persist rubrics result
+                    st.session_state['last_result_df'] = result
+                    buf = BytesIO()
+                    result.to_excel(buf, index=False, engine="openpyxl")
+                    buf.seek(0)
+                    st.session_state['last_result_bytes'] = buf.getvalue()
+                    st.session_state['last_result_filename'] = f"Nilai_{nama_ujian}_kelas_{kelas}_{group}_with_rubrics.xlsx"
+
+    # show persisted rubrics result if present
+    if 'last_result_bytes' in st.session_state and st.session_state.get('last_result_filename', '').endswith('_with_rubrics.xlsx'):
+        with st.expander("Show score"):
+            st.dataframe(st.session_state['last_result_df'].style.hide(axis="index"), width="content")
+
+        st.download_button(
+            label="Download Result",
+            data=st.session_state['last_result_bytes'],
+            file_name=st.session_state['last_result_filename'],
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
