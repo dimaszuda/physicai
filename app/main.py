@@ -2,6 +2,7 @@ import sys
 import json
 from io import BytesIO
 from pathlib import Path
+from datetime import datetime
 
 # Add parent directory to path to allow imports from core and other modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -91,14 +92,7 @@ if method == "Full AI":
                     schema=schema,
                     prompt=prompt_schema
                 )
-            if soal_soal is not None:
-                st.text_area(
-                    "response",
-                    value=json.dumps(soal_soal, indent=2, ensure_ascii=False),
-                    height=400
-                )
-            else:
-                st.text_area("response", value="Error")
+
             with st.spinner("Parsing answer... this may take a while"):
                 for idx, student in enumerate(st.session_state.students):
                     with st.spinner(f"Scoring student absent {idx+1}"):
@@ -112,11 +106,6 @@ if method == "Full AI":
 
                     if score is not None:
                         responses.append(score)
-                        st.text_area(
-                            f"Score Absen {idx+1}",
-                            value=json.dumps(score, indent=2, ensure_ascii=False),
-                            height=400
-                        )
                     else:
                         st.text("None")
             
@@ -129,15 +118,13 @@ if method == "Full AI":
                 )
 
             if result is not None:
-                # save result and bytes to session_state so they persist across reruns
                 st.session_state['last_result_df'] = result
                 buf = BytesIO()
                 result.to_excel(buf, index=False, engine="openpyxl")
                 buf.seek(0)
                 st.session_state['last_result_bytes'] = buf.getvalue()
-                st.session_state['last_result_filename'] = f"Nilai_{nama_ujian}_kelas_{kelas}_{group}_full_ai.xlsx"
+                st.session_state['last_result_filename'] = f"Nilai_{nama_ujian}_kelas_{kelas}_{group}_{datetime.now().strftime('%Y%m%d')}_full_ai.xlsx"
 
-        # show persisted result (if any) so it doesn't disappear after download (Streamlit reruns)
     if 'last_result_bytes' in st.session_state and st.session_state.get('last_result_filename', '').endswith('_full_ai.xlsx'):
         with st.expander("Show score"):
             st.dataframe(
@@ -160,8 +147,9 @@ if method == "Full AI":
         )
 
 elif method == "Evaluate with Keys":
-    st.write("Provide answer keys correspond to the exam questions and decide what weight used to score the answer")
-    #TODO: butuh penjelasan lebih detail tentang metode ini
+    st.write("Provide answer keys correspond to the exam questions and decide what weight used to score the answer. In this method, you don't need to provide the score each number or component.")
+    st.write("Note that AI may produce an incorrect evaluation due to hallucinations.")
+
     uploader, parameter = st.columns([2, 1])
 
     with uploader:
@@ -267,15 +255,13 @@ elif method == "Evaluate with Keys":
                 )
                 
             if result is not None:
-                # persist result to session_state
                 st.session_state['last_result_df'] = result
                 buf = BytesIO()
                 result.to_excel(buf, index=False, engine="openpyxl")
                 buf.seek(0)
                 st.session_state['last_result_bytes'] = buf.getvalue()
-                st.session_state['last_result_filename'] = f"Nilai_{nama_ujian}_kelas_{kelas}_{group}_with_keys.xlsx"
+                st.session_state['last_result_filename'] = f"Nilai_{nama_ujian}_kelas_{kelas}_{group}_{datetime.now().strftime('%Y%m%d_%H%M')}_with_keys.xlsx"
 
-        # show persisted result for "with keys" method
     if 'last_result_bytes' in st.session_state and st.session_state.get('last_result_filename', '').endswith('_with_keys.xlsx'):
         with st.expander("Show score"):
             st.dataframe(
@@ -299,8 +285,8 @@ elif method == "Evaluate with Keys":
         )
 
 elif method == "Evaluate with Rubrics":
-    st.write("Provide Assesment Rubrics correspond to the exam questions to get more precise assesment score")
-    
+    st.write("Provide Assesment Score Rubrics correspond to the exam questions to get more precise assesment score. In this method, You can use hollistic, analytic or component based structure rubric for scoring")
+    st.write("Note that AI may produce an incorrect evaluation due to hallucinations.")
     with st.container(border=True):
         st.subheader("Upload soal, rubrik penilaian dan jawaban siswa disini")
 
@@ -413,7 +399,7 @@ elif method == "Evaluate with Rubrics":
                     result.to_excel(buf, index=False, engine="openpyxl")
                     buf.seek(0)
                     st.session_state['last_result_bytes'] = buf.getvalue()
-                    st.session_state['last_result_filename'] = f"Nilai_{nama_ujian}_kelas_{kelas}_{group}_with_rubrics.xlsx"
+                    st.session_state['last_result_filename'] = f"Nilai_{nama_ujian}_kelas_{kelas}_{group}_{datetime.now().strftime('%Y%m%d_%H%M')}_with_rubrics.xlsx"
 
     # show persisted rubrics result if present
     if 'last_result_bytes' in st.session_state and st.session_state.get('last_result_filename', '').endswith('_with_rubrics.xlsx'):

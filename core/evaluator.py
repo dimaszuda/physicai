@@ -18,7 +18,7 @@ class Evaluator:
         question: list[UploadedFile] | None = None,
         keys: list[UploadedFile] | None = None,
         rubrics: list[UploadedFile] | None = None,
-        answer: list[UploadedFile] | None = None
+        answer=None
     ):
         self.method = method
         self.question = question
@@ -45,7 +45,7 @@ class Evaluator:
                 if file.type == 'application/pdf':
                     parts = process.read_pdf(file.read())
                     soal_img.extend(parts)
-                elif file.type.startswith('image/'):
+                elif file.type == 'image/jpeg':
                     part = process.read_img(file.read(), mime_type=file.type)
                     soal_img.append(part)
             if soal_img is not None:
@@ -79,15 +79,14 @@ class Evaluator:
         answer_img = []
         try:
             for answer in answers:
-                print(f"answer file {answer.name}")
                 if answer.type == "application/pdf":
                     parts = process.read_pdf(answer.read())
                     answer_img.extend(parts)
-                elif answer.type.startswith('image/'):
+                elif answer.type == 'image/jpeg':
                     part = process.read_img(answer.read(), mime_type=answer.type)
                     answer_img.append(part)
 
-            if answer_img:
+            if answer_img is not None:
                 response = self.client.models.generate_content(
                     model="gemini-2.5-flash",
                     contents=[  
@@ -99,7 +98,7 @@ class Evaluator:
                         "response_json_schema": schema.score_schema(),
                     }
                 )
-                return json.loads(response.text)
+            return json.loads(response.text)
         except Exception as e:
             print(f"Error occured: {e}")
             return None
@@ -118,7 +117,7 @@ class Evaluator:
                 if key.type == "application/pdf":
                     parts = process.read_pdf(key.read())
                     key_imgs.extend(parts)
-                elif key.type.startswith('image/'):
+                elif key.type == "image/jpeg":
                     parts = process.read_img(key.read(), mime_type=key.type)
                     key_imgs.extend(parts)
             
@@ -157,11 +156,11 @@ class Evaluator:
                 if answer.type == "application/pdf":
                     parts = process.read_pdf(answer.read())
                     answer_img.extend(parts)
-                elif answer.type.startswith('image/'):
+                elif answer.type == "image/jpeg":
                     parts = process.read_img(answer.read(), mime_type=answer.type)
                     answer_img.extend(parts)
-
-            if answer_img:
+                
+            if answer_img is not None:
                 response = self.client.models.generate_content(
                     model="gemini-2.5-flash",
                     contents=[  
@@ -230,7 +229,7 @@ class Evaluator:
                 if key.type == "application/pdf":
                     parts = process.read_pdf(key.read())
                     key_imgs.extend(parts)
-                elif key.type.startswith('image/'):
+                elif key.type == "image/jpeg":
                     parts = process.read_img(key.read(), mime_type=key.type)
                     key_imgs.extend(parts)
             
@@ -269,11 +268,11 @@ class Evaluator:
                 if answer.type == "application/pdf":
                     parts = process.read_pdf(answer.read())
                     answer_img.extend(parts)
-                elif answer.type.startswith('image/'):
+                elif answer.type == "image/jpeg":
                     parts = process.read_img(answer.read(), mime_type=answer.type)
                     answer_img.extend(parts)
-
-            if answer_img:
+                
+            if answer_img is not None:
                 response = self.client.models.generate_content(
                     model="gemini-2.5-flash",
                     contents=[
