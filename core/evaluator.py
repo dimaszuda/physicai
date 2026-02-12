@@ -3,6 +3,7 @@ import json
 from google import genai
 from dotenv import load_dotenv
 from google.genai import types
+from google.genai.types import GenerateContentConfig
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 
 load_dotenv()
@@ -135,7 +136,7 @@ class Evaluator:
                     )
                 return json.loads(response.text)
         except Exception as e:
-            print(f"Error Occured: {e}")
+            print(f"Error occured: {e}")
             return None
         
     def with_keys(
@@ -155,10 +156,10 @@ class Evaluator:
             for answer in answers:
                 if answer.type == "application/pdf":
                     parts = process.read_pdf(answer.read())
-                    answer_img.extend(parts)
+                    answer_img.append(parts)
                 elif answer.type == "image/jpeg":
                     parts = process.read_img(answer.read(), mime_type=answer.type)
-                    answer_img.extend(parts)
+                    answer_img.append(parts)
                 
             if answer_img is not None:
                 response = self.client.models.generate_content(
@@ -167,10 +168,10 @@ class Evaluator:
                         *answer_img,
                         prompt.scoring_key_prompt(soal, keys)
                     ],
-                    config={
-                        "response_mime_type": "application/json",
-                        "response_json_schema": schema.component_score(),
-                    }
+                    config=GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=schema.component_score(),
+                    )
                 )
 
                 return json.loads(response.text)
@@ -267,10 +268,10 @@ class Evaluator:
             for answer in answers:
                 if answer.type == "application/pdf":
                     parts = process.read_pdf(answer.read())
-                    answer_img.extend(parts)
+                    answer_img.append(parts)
                 elif answer.type == "image/jpeg":
                     parts = process.read_img(answer.read(), mime_type=answer.type)
-                    answer_img.extend(parts)
+                    answer_img.append(parts)
                 
             if answer_img is not None:
                 response = self.client.models.generate_content(

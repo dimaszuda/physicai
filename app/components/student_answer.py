@@ -8,7 +8,7 @@ def add_student(student, method):
             st.subheader(f"Absen {student['id']}")
         
         with col2:
-            st.write("")  # Spacer
+            st.write("") 
         
         with col3:
             if st.button("delete", key=f"delete_student_{method}_{student['id']}", type="secondary"):
@@ -22,16 +22,16 @@ def add_student(student, method):
             accept_multiple_files=True,
             type=["pdf", "jpg", "png", "jpeg"],
             key=f"student_files_{student['id']}_{method}"
-        )
+        ) or []
 
         student["files"] = files
-
 
         images = []
         pdfs = []
 
         for file in files:
-            if file.type == "application/pdf":
+            ftype = getattr(file, "type", "")
+            if ftype == "application/pdf":
                 pdfs.append(file)
             else:
                 images.append(file)
@@ -39,11 +39,37 @@ def add_student(student, method):
         if images:
             cols = st.columns(min(len(images), 4))
             for i, img in enumerate(images):
-                img.seek(0)
+                try:
+                    img.seek(0)
+                except Exception:
+                    pass
                 with cols[i % len(cols)]:
-                    st.image(img, width=200)
+                    st.write(f"{getattr(img, 'name', 'file')} ({getattr(img, 'type', '')})")
+                    try:
+                        if hasattr(img, 'getvalue'):
+                            data = img.getvalue()
+                        else:
+                            img.seek(0)
+                            data = img.read()
+                    except Exception:
+                        try:
+                            img.seek(0)
+                            data = img.read()
+                        except Exception:
+                            data = None
+
+                    if data is not None:
+                        st.image(data, width=200)
+                    else:
+                        st.text("Unable to read image data")
 
         for pdf in pdfs:
-            pdf.seek(0)
-            st.pdf(pdf)
+            try:
+                pdf.seek(0)
+            except Exception:
+                pass
+            try:
+                st.pdf(pdf)
+            except Exception:
+                st.write(f"PDF uploaded: {getattr(pdf, 'name', '')}")
 

@@ -106,8 +106,6 @@ if method == "Full AI":
 
                     if score is not None:
                         responses.append(score)
-                    else:
-                        st.text("None")
             
             with st.spinner("Scoring student answer..."):
                 result = post_processing.process_ai(
@@ -198,14 +196,6 @@ elif method == "Evaluate with Keys":
                     schema=schema,
                     prompt=prompt_schema
                 )
-            if soal_soal is not None:
-                st.text_area(
-                    "response",
-                    value=json.dumps(soal_soal, indent=2, ensure_ascii=False),
-                    height=400
-                )
-            else:
-                st.text_area("response", value="Error")
             
             with st.spinner("Parsing answer key... This may take a while"):
                 keys = evaluator.parsing_keys(
@@ -214,15 +204,6 @@ elif method == "Evaluate with Keys":
                     schema=schema,
                     process=process
                 )
-
-            if keys is not None:
-                st.text_area(
-                    "response",
-                    value=json.dumps(keys, indent=2, ensure_ascii=False),
-                    height=400
-                )
-            else:
-                st.text_area("response", value="Error")
 
             with st.spinner("Parsing student answer... this may take a while"):
                 for idx, student in enumerate(st.session_state.students):
@@ -237,11 +218,6 @@ elif method == "Evaluate with Keys":
                         )
                     if score is not None:
                         responses.append(score)
-                        st.text_area(
-                            f"Score Absen {idx+1}",
-                            value=json.dumps(score, indent=2, ensure_ascii=False),
-                            height=400
-                        )
                     else:
                         st.text("None")
 
@@ -325,14 +301,6 @@ elif method == "Evaluate with Rubrics":
                     schema=schema,
                     prompt=prompt_schema
                 )
-            if soal_soal is not None:
-                st.text_area(
-                    "response",
-                    value=json.dumps(soal_soal, indent=2, ensure_ascii=False),
-                    height=400
-                )
-            else:
-                st.text_area("response", value="Error")
             
             with st.spinner("Detect scoring rubrics type... This may take a while"):
                 rubric_type = evaluator.detect_rubric(
@@ -378,11 +346,6 @@ elif method == "Evaluate with Rubrics":
                             )
                         if score is not None:
                             responses.append(score)
-                            st.text_area(
-                                f"Score Absen {idx+1}",
-                                value=json.dumps(score, indent=2, ensure_ascii=False),
-                                height=400
-                            )
                         else:
                             st.text("None")
                 
