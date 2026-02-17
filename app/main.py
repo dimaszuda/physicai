@@ -1,10 +1,8 @@
 import sys
-import json
 from io import BytesIO
 from pathlib import Path
 from datetime import datetime
 
-# Add parent directory to path to allow imports from core and other modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import streamlit as st
@@ -84,7 +82,9 @@ if method == "Full AI":
     responses = []
 
     if st.button("Start Evaluate", key="button full ai"):
-        if upload_question is not None and st.session_state.students is not None:
+        if not upload_question or not st.session_state.students:
+            st.error("Data belum lengkap, silahkan lengkapi data diatas")
+        else:
             with st.spinner("Parsing question... this may take a while."):
                 soal_soal = evaluator.parse_question(
                     question=upload_question,
@@ -116,6 +116,7 @@ if method == "Full AI":
                 )
 
             if result is not None:
+                st.success("Jawaban siswa selesai dikoreksi. Lihat hasil di bawah.")
                 st.session_state['last_result_df'] = result
                 buf = BytesIO()
                 result.to_excel(buf, index=False, engine="openpyxl")
@@ -153,6 +154,7 @@ elif method == "Evaluate with Keys":
     with uploader:
         with st.container(border=True):
             st.subheader("Upload Soal, Kunci Jawaban dan Jawaban siswa disini")
+            st.cache()
             upload_question = st.file_uploader(
                 "Upload Soal Ujian", 
                 key="question_uploader_keys",
@@ -188,7 +190,9 @@ elif method == "Evaluate with Keys":
     responses = []
 
     if st.button("Start Evaluate", key="button with keys"):
-        if upload_question is not None and st.session_state.students is not None:
+        if not upload_question or not st.session_state.students:
+            st.error("Data belum lengkap, silahkan lengkapi data diatas")
+        else:
             with st.spinner("Parsing question... this may take a while."):
                 soal_soal = evaluator.parse_question(
                     question=upload_question,
@@ -231,6 +235,7 @@ elif method == "Evaluate with Keys":
                 )
                 
             if result is not None:
+                st.success("Jawaban siswa selesai dikoreksi. Lihat hasil di bawah.")
                 st.session_state['last_result_df'] = result
                 buf = BytesIO()
                 result.to_excel(buf, index=False, engine="openpyxl")
@@ -293,7 +298,9 @@ elif method == "Evaluate with Rubrics":
     responses = []
      
     if st.button("Start Evaluate", key="button with rubrics"):
-        if upload_question is not None and st.session_state.students is not None:
+        if not upload_question or not st.session_state.students:
+            st.error("Data belum lengkap, silahkan lengkapi data diatas")
+        else:
             with st.spinner("Parsing question... this may take a while."):
                 soal_soal = evaluator.parse_question(
                     question=upload_question,
@@ -356,7 +363,7 @@ elif method == "Evaluate with Rubrics":
                         result = post_processing.process_component(responses=responses)
                 
                 if result is not None:
-                    # persist rubrics result
+                    st.success("Jawaban siswa selesai dikoreksi. Lihat hasil di bawah.")
                     st.session_state['last_result_df'] = result
                     buf = BytesIO()
                     result.to_excel(buf, index=False, engine="openpyxl")
@@ -364,7 +371,6 @@ elif method == "Evaluate with Rubrics":
                     st.session_state['last_result_bytes'] = buf.getvalue()
                     st.session_state['last_result_filename'] = f"Nilai_{nama_ujian}_kelas_{kelas}_{group}_{datetime.now().strftime('%Y%m%d_%H%M')}_with_rubrics.xlsx"
 
-    # show persisted rubrics result if present
     if 'last_result_bytes' in st.session_state and st.session_state.get('last_result_filename', '').endswith('_with_rubrics.xlsx'):
         with st.expander("Show score"):
             st.dataframe(st.session_state['last_result_df'].style.hide(axis="index"), width="content")
