@@ -1,383 +1,154 @@
 import sys
-from io import BytesIO
+import streamlit as st
 from pathlib import Path
 from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import streamlit as st
-from core.prompt import Prompt
-from core.schema import LLMSchema
-from core.evaluator import Evaluator
-from core.processor import Processor
-from core.post_processing import PostProcessing
-from components.student_answer import add_student
+from core.evaluation import main
+from page.hasil_export import render
+from core.db.repository import BaseRepository
+from core.auth import hash_password, verify_password
 
-prompt_schema = Prompt()
-schema = LLMSchema()
-process = Processor()
-evaluator = Evaluator()
-post_processing = PostProcessing()
+
+repo = BaseRepository()
 
 st.set_page_config(
-    page_title="Physicai",
-    layout="wide"
+    page_title="PhysicAI - Login",
+    layout="centered",
+    initial_sidebar_state="collapsed"
 )
 
-if "students" not in st.session_state:
-    st.session_state.students = []
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "username" not in st.session_state:
+    st.session_state.username = None
+if "new_username" not in st.session_state:
+    st.session_state.new_username = ""
+if "new_password" not in st.session_state:
+    st.session_state.new_password = ""
+if "new_password_confirm" not in st.session_state:
+    st.session_state.new_password_confirm = ""
 
-st.title("Physicai")
-st.header("Low Effort with High Accuracy. AI-Based Physics Exam Evaluator")
+def login_user(username, password):
+    resp = repo.select("users", {"user_name": username})
+    rows = resp.data or []
+    if not rows:
+        return False
 
-nama_ujian = st.text_input("Nama Ujian")
-kelas = st.selectbox(
-    "Kelas",
-    ("X", "XI", "XII")
-)
-group = st.text_input("Group Kelas", placeholder="IPA 1")
+    stored = rows[0].get("password_hash")
+    if stored and verify_password(password, stored):
+        st.session_state.logged_in = True
+        st.session_state.username = username
+        return True
+    return False
 
-method = st.selectbox(
-    "Pilih Metode Evaluasi",
-    ("Full AI", "Evaluate with Keys", "Evaluate with Rubrics")
-)
 
-if method == "Full AI":
-    st.write("Use full AI to evaluate student physics essay assessments. \
-             Let the AI determine the correct answer and the step-by-step process.")
-    st.write("Note that AI may produce an incorrect evaluation due to hallucinations. \
-             You can switch to the other method and provide the keys or rubrics above to get a more precise evaluation score.")
 
-    left, right = st.columns([2, 1])
 
-    with left:
-        with st.container(border=True): 
-            st.subheader("Upload Exam Question and Student Answer here")
-
-            upload_question = st.file_uploader(
-                "Upload Exam Question", 
-                key="question_uploader_ai",
-                accept_multiple_files=True,
-                type=["pdf", "jpg", "png", "jpeg"]
-            )
-
-            st.write("Add student answer")
-            for student in st.session_state.students:
-                add_student(student, "ai") 
-
-            if st.button("Add Student", key="add full ai"):
-                st.session_state.students.append({
-                    "id": len(st.session_state.students) + 1,
-                    "files": []
-                })
-                st.rerun()
-
-    with right:
-        with st.container(border=True):
-            st.subheader("Tentukan Bobot untuk setiap aspek penilaian")
-            basic_concept_weight = st.slider("Bobot untuk Konsep Dasar", 1, 10)
-            step_by_step_weight = st.slider("Bobot untuk proses perhitungan", 1, 10)
-            final_answer_weight = st.slider("Bobot untuk jawaban akhir", 1, 10)
+def create_account(username, email, password, password_confirm):
+    if not username or not password or not email:
+        return False, "Username,  email dan password tidak boleh kosong"
     
-    responses = []
+    if password != password_confirm:
+        return False, "Password tidak cocok"
+    
+    if len(password) < 8:
+        return False, "Password minimal 8 karakter"
+    
+    resp = repo.select("users", {"user_name": username})
+    if resp.data:
+        return False, "Username sudah terdaftar"
+    
+    try:
+        hashed = hash_password(password)
 
-    if st.button("Start Evaluate", key="button full ai"):
-        if not upload_question or not st.session_state.students:
-            st.error("Data belum lengkap, silahkan lengkapi data diatas")
-        else:
-            with st.spinner("Parsing question... this may take a while."):
-                soal_soal = evaluator.parse_question(
-                    question=upload_question,
-                    process=process,
-                    schema=schema,
-                    prompt=prompt_schema
-                )
+        repo.insert(
+            "users", {
+                "user_name": username,
+                "user_email": email,
+                "created_at": datetime.now().timestamp(),
+                "password_hash": hashed
+        })
+        return True, "Akun berhasil dibuat! Silakan login."
+    except Exception as e:
+        error_msg = str(e)
+        if "row-level security" in error_msg.lower():
+            return False, "Gagal membuat akun (RLS policy). Hubungi admin."
+        return False, f"Gagal membuat akun: {error_msg}"
 
-            with st.spinner("Parsing answer... this may take a while"):
-                for idx, student in enumerate(st.session_state.students):
-                    with st.spinner(f"Scoring student absent {idx+1}"):
-                        score = evaluator.full_ai(
-                            soal=soal_soal,
-                            answers=student["files"],
-                            prompt=prompt_schema,
-                            schema=schema,
-                            process=process
-                        )
 
-                    if score is not None:
-                        responses.append(score)
-            
-            with st.spinner("Scoring student answer..."):
-                result = post_processing.process_ai(
-                    responses=responses,
-                    basic_concept_weight=basic_concept_weight,
-                    step_by_step_weight=step_by_step_weight,
-                    final_answer_weight=final_answer_weight
-                )
-
-            if result is not None:
-                st.success("Jawaban siswa selesai dikoreksi. Lihat hasil di bawah.")
-                st.session_state['last_result_df'] = result
-                buf = BytesIO()
-                result.to_excel(buf, index=False, engine="openpyxl")
-                buf.seek(0)
-                st.session_state['last_result_bytes'] = buf.getvalue()
-                st.session_state['last_result_filename'] = f"Nilai_{nama_ujian}_kelas_{kelas}_{group}_{datetime.now().strftime('%Y%m%d')}_full_ai.xlsx"
-
-    if 'last_result_bytes' in st.session_state and st.session_state.get('last_result_filename', '').endswith('_full_ai.xlsx'):
-        with st.expander("Show score"):
-            st.dataframe(
-                st.session_state['last_result_df'].style.format(
-                    {
-                        "basic_concept_weighted": "{:.1f}",
-                        "step_by_step_weighted": "{:.1f}",
-                        "final_answer_weighted": "{:.1f}",
-                        "total_score": "{:.1f}"
-                    }
-                ).hide(axis="index"),
-                width="content"
-            )
-
-        st.download_button(
-            label="Download Result",
-            data=st.session_state['last_result_bytes'],
-            file_name=st.session_state['last_result_filename'],
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-
-elif method == "Evaluate with Keys":
-    st.write("Provide answer keys correspond to the exam questions and decide what weight used to score the answer. In this method, you don't need to provide the score each number or component.")
-    st.write("Note that AI may produce an incorrect evaluation due to hallucinations.")
-
-    uploader, parameter = st.columns([2, 1])
-
-    with uploader:
-        with st.container(border=True):
-            st.subheader("Upload Soal, Kunci Jawaban dan Jawaban siswa disini")
-            st.cache()
-            upload_question = st.file_uploader(
-                "Upload Soal Ujian", 
-                key="question_uploader_keys",
-                accept_multiple_files=True,
-                type=["pdf", "jpg", "png", "jpeg"]
-            )
-            upload_keys = st.file_uploader(
-                "Upload Kunci Jawaban", 
-                key="keys_uploader",
-                accept_multiple_files=True,
-                type=["pdf", "jpg", "png", "jpeg"]
-            )
-
-            st.write("Add student answer")
-            for student in st.session_state.students:
-                add_student(student, "keys")              
-            
-            if st.button("Add Student", key="add with keys"):
-                st.session_state.students.append({
-                    "id": len(st.session_state.students) + 1,
-                    "files": []
-                })
-                st.rerun()
-
-    with parameter:
-        with st.container(border=True):
-            st.subheader("Tentukan bobot untuk setiap aspek penilaian")
-            known_weight = st.slider("Bobot untuk \"Diketahui\"", 1, 10)
-            asked_weight = st.slider("Bobot untuk \"Ditanya\"", 1, 10)
-            answer_weight = st.slider("Bobot untuk \"Dijawab\"", 1, 10)
-            final_weight = st.slider("Bobot untuk jawaban akhir", 1, 10)
-
-    responses = []
-
-    if st.button("Start Evaluate", key="button with keys"):
-        if not upload_question or not st.session_state.students:
-            st.error("Data belum lengkap, silahkan lengkapi data diatas")
-        else:
-            with st.spinner("Parsing question... this may take a while."):
-                soal_soal = evaluator.parse_question(
-                    question=upload_question,
-                    process=process,
-                    schema=schema,
-                    prompt=prompt_schema
-                )
-            
-            with st.spinner("Parsing answer key... This may take a while"):
-                keys = evaluator.parsing_keys(
-                    keys=upload_keys,
-                    prompt=prompt_schema,
-                    schema=schema,
-                    process=process
-                )
-
-            with st.spinner("Parsing student answer... this may take a while"):
-                for idx, student in enumerate(st.session_state.students):
-                    with st.spinner(f"Scoring student absent {idx+1}"):
-                        score = evaluator.with_keys(
-                            soal=soal_soal,
-                            answers=student["files"],
-                            prompt=prompt_schema,
-                            keys=keys,
-                            schema=schema,
-                            process=process
-                        )
-                    if score is not None:
-                        responses.append(score)
-                    else:
-                        st.text("None")
-
-            with st.spinner("Scoring student answer..."):
-                result = post_processing.process_keys(
-                    responses=responses,
-                    known_weight=known_weight,
-                    asked_weight=asked_weight,
-                    answer_weight=answer_weight,
-                    final_weight=final_weight
-                )
-                
-            if result is not None:
-                st.success("Jawaban siswa selesai dikoreksi. Lihat hasil di bawah.")
-                st.session_state['last_result_df'] = result
-                buf = BytesIO()
-                result.to_excel(buf, index=False, engine="openpyxl")
-                buf.seek(0)
-                st.session_state['last_result_bytes'] = buf.getvalue()
-                st.session_state['last_result_filename'] = f"Nilai_{nama_ujian}_kelas_{kelas}_{group}_{datetime.now().strftime('%Y%m%d_%H%M')}_with_keys.xlsx"
-
-    if 'last_result_bytes' in st.session_state and st.session_state.get('last_result_filename', '').endswith('_with_keys.xlsx'):
-        with st.expander("Show score"):
-            st.dataframe(
-                st.session_state['last_result_df'].style.format(
-                    {
-                        "skor_diketahui_dengan_bobot": "{:.2f}",
-                        "skor_ditanya_dengan_bobot": "{:.2f}",
-                        "skor_dijawab_dengan_bobot": "{:.2f}",
-                        "skor_jawaban_akhir_dengan_bobot": "{:.2f}",
-                        "total_score": "{:.2f}"
-                    }
-                ).hide(axis="index"),
-                width="content"
-            )
-
-        st.download_button(
-            label="Download Result",
-            data=st.session_state['last_result_bytes'],
-            file_name=st.session_state['last_result_filename'],
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-
-elif method == "Evaluate with Rubrics":
-    st.write("Provide Assesment Score Rubrics correspond to the exam questions to get more precise assesment score. In this method, You can use hollistic, analytic or component based structure rubric for scoring")
-    st.write("Note that AI may produce an incorrect evaluation due to hallucinations.")
-    with st.container(border=True):
-        st.subheader("Upload soal, rubrik penilaian dan jawaban siswa disini")
-
-        upload_question = st.file_uploader(
-            "Upload Soal Ujian", 
-            key="question_uploader_rubrics",
-            accept_multiple_files=True,
-            type=["pdf", "jpg", "png", "jpeg"]
-        )
-        upload_keys = st.file_uploader(
-            "Upload Kunci Jawaban", 
-            key="keys_uploader_rubrics",
-            accept_multiple_files=True,
-            type=["pdf", "jpg", "png", "jpeg"]
-        )
-
-        st.write("Add student answer")
-        for student in st.session_state.students:
-            add_student(student, "rubrics") 
+def show_login_page():
+    """Tampilkan halaman login"""
+    st.title("PhysicAI")
+    st.markdown("---")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Login")
+        login_username = st.text_input("Username", key="login_username")
+        login_password = st.text_input("Password", type="password", key="login_password")
         
-        if st.button("Add Student", key="add with rubrics"):
-            st.session_state.students.append({
-                "id": len(st.session_state.students) + 1,
-                "files": []
-            })
+        if st.button("Masuk", use_container_width=True):
+            if login_username and login_password:
+                if login_user(login_username, login_password):
+                    st.success("Login berhasil! Redirecting...")
+                    st.rerun()
+                else:
+                    st.error("Username atau password salah")
+            else:
+                st.warning("Silakan isi semua field")
+    
+    with col2:
+        st.subheader("Buat Akun Baru")
+        new_username = st.text_input("Username", key="new_username")
+        new_email = st.text_input("Email", key="new_email")
+        new_password = st.text_input("Password", type="password", key="new_password")
+        new_password_confirm = st.text_input("Konfirmasi Password", type="password", key="new_password_confirm")
+        
+        if st.button("Daftar", use_container_width=True):
+            success, message = create_account(new_username, email=new_email, password=new_password, password_confirm=new_password_confirm)
+            if success:
+                st.success(message)
+                st.session_state.new_username = ""
+                st.session_state.new_password = ""
+                st.session_state.new_email = ""
+                st.session_state.new_password_confirm = ""
+                st.sleep(1)
+                st.rerun()
+            else:
+                st.error(message)
+
+
+def show_main_app():
+    st.title("📚 PhysicAI - Evaluator Essay")
+
+    # sidebar navigation only visible post-login
+    menu = st.sidebar.radio("Menu", ["Home", "Hasil Export"])
+
+    col1, col2 = st.columns([0.9, 0.1])
+    with col1:
+        st.write(f"Selamat datang, **{st.session_state.username}**!")
+    with col2:
+        if st.button("Logout"):
+            st.session_state.logged_in = False
+            st.session_state.username = None
             st.rerun()
 
-    responses = []
-     
-    if st.button("Start Evaluate", key="button with rubrics"):
-        if not upload_question or not st.session_state.students:
-            st.error("Data belum lengkap, silahkan lengkapi data diatas")
-        else:
-            with st.spinner("Parsing question... this may take a while."):
-                soal_soal = evaluator.parse_question(
-                    question=upload_question,
-                    process=process,
-                    schema=schema,
-                    prompt=prompt_schema
-                )
-            
-            with st.spinner("Detect scoring rubrics type... This may take a while"):
-                rubric_type = evaluator.detect_rubric(
-                    keys=upload_keys,
-                    prompt=prompt_schema,
-                    schema=schema,
-                    process=process
-                )
+    st.markdown("---")
 
-            if rubric_type is not None:
-                if rubric_type["rubric_type"] == "hollistik":
-                    schema_rubrics = schema.hollistik_schema()
-                    schema_scores = schema.rubrics_score()
-                    postprocess = post_processing.process_rubrics(responses=responses)
-                elif rubric_type["rubric_type"] == "analitik":
-                    schema_rubrics = schema.analytic_schema()
-                    schema_scores = schema.rubrics_score()
-                    postprocess = post_processing.process_rubrics(responses=responses)
-                elif rubric_type["rubric_type"] == "component":
-                    schema_rubrics = schema.component_schema()
-                    schema_scores = schema.component_score()
-                    postprocess = post_processing.process_component(responses=responses)
+    if menu == "Home":
+        st.info("🚀 Aplikasi evaluator essay siap digunakan!")
+        try:
+            from core.evaluation import main as evaluation_main
+            evaluation_main()
+        except ImportError:
+            pass
+    elif menu == "Hasil Export":
+        render()
 
-                with st.spinner("Parsing scoring rubric... This may take a while"):
-                    rubrics = evaluator.parsing_rubrics(
-                        keys=upload_keys,
-                        prompt=prompt_schema,
-                        schema_rubrics=schema_rubrics,
-                        process=process
-                    )
-            
-            if rubrics is not None:
-                with st.spinner("Parsing student answer... this may take a while"):
-                    for idx, student in enumerate(st.session_state.students):
-                        with st.spinner(f"Scoring student absent {idx+1}"):
-                            score = evaluator.with_rubrics(
-                                soal=soal_soal,
-                                answers=student["files"],
-                                prompt=prompt_schema,
-                                rubrics=rubrics,
-                                schema_scores=schema_scores,
-                                process=process
-                            )
-                        if score is not None:
-                            responses.append(score)
-                        else:
-                            st.text("None")
-                
-                with st.spinner("Scoring student answer..."):
-                    if rubric_type["rubric_type"] == "hollistik" or rubric_type["rubric_type"] == "analitik":
-                        result = post_processing.process_rubrics(responses=responses)
-                    elif rubric_type["rubric_type"] == "component":
-                        result = post_processing.process_component(responses=responses)
-                
-                if result is not None:
-                    st.success("Jawaban siswa selesai dikoreksi. Lihat hasil di bawah.")
-                    st.session_state['last_result_df'] = result
-                    buf = BytesIO()
-                    result.to_excel(buf, index=False, engine="openpyxl")
-                    buf.seek(0)
-                    st.session_state['last_result_bytes'] = buf.getvalue()
-                    st.session_state['last_result_filename'] = f"Nilai_{nama_ujian}_kelas_{kelas}_{group}_{datetime.now().strftime('%Y%m%d_%H%M')}_with_rubrics.xlsx"
-
-    if 'last_result_bytes' in st.session_state and st.session_state.get('last_result_filename', '').endswith('_with_rubrics.xlsx'):
-        with st.expander("Show score"):
-            st.dataframe(st.session_state['last_result_df'].style.hide(axis="index"), width="content")
-
-        st.download_button(
-            label="Download Result",
-            data=st.session_state['last_result_bytes'],
-            file_name=st.session_state['last_result_filename'],
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+if not st.session_state.logged_in:
+    show_login_page()
+else:
+    show_main_app()
