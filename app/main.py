@@ -67,7 +67,7 @@ def create_account(username, email, password, password_confirm):
             "users", {
                 "user_name": username,
                 "user_email": email,
-                "created_at": datetime.now().timestamp(),
+                "created_at": datetime.now().isoformat(),
                 "password_hash": hashed
         })
         return True, "Akun berhasil dibuat! Silakan login."
@@ -111,11 +111,6 @@ def show_login_page():
             success, message = create_account(new_username, email=new_email, password=new_password, password_confirm=new_password_confirm)
             if success:
                 st.success(message)
-                st.session_state.new_username = ""
-                st.session_state.new_password = ""
-                st.session_state.new_email = ""
-                st.session_state.new_password_confirm = ""
-                st.sleep(1)
                 st.rerun()
             else:
                 st.error(message)

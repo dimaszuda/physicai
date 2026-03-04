@@ -20,10 +20,9 @@ process = Processor()
 evaluator = Evaluator()
 post_processing = PostProcessing()
 repo = BaseRepository()
-
+BUCKET_NAME = "Physicai"
 
 def main():
-
     if "students" not in st.session_state:
         st.session_state.students = []
 
@@ -42,6 +41,18 @@ def main():
         "Pilih Metode Evaluasi",
         ("Full AI", "Evaluate with Keys", "Evaluate with Rubrics")
     )
+
+    user_resp = repo.select("users", {"user_name": st.session_state.username})
+    user_id = user_resp.data[0]["user_id"] if user_resp.data else None
+
+    if user_id:
+        metadata = {
+            "user_id": user_id,
+            "evaluation_method": "AI",
+            "exam_name": nama_ujian,
+            "class": kelas,
+            "class_group": group,
+        }
 
     if method == "Full AI":
         st.write("Use full AI to evaluate student physics essay assessments. \
@@ -83,6 +94,8 @@ def main():
         responses = []
 
         if st.button("Start Evaluate", key="button full ai"):
+            DT_PR = datetime.now()
+            metadata["dt_pr"] = DT_PR.isoformat()
             if not upload_question or not st.session_state.students:
                 st.error("Data belum lengkap, silahkan lengkapi data diatas")
             else:
@@ -117,13 +130,67 @@ def main():
                     )
 
                 if result is not None:
+                    metadata["status"] = "success"
                     st.success("Jawaban siswa selesai dikoreksi. Lihat hasil di bawah.")
                     st.session_state['last_result_df'] = result
                     buf = BytesIO()
                     result.to_excel(buf, index=False, engine="openpyxl")
                     buf.seek(0)
                     st.session_state['last_result_bytes'] = buf.getvalue()
-                    st.session_state['last_result_filename'] = f"Nilai_{nama_ujian}_kelas_{kelas}_{group}_{datetime.now().strftime('%Y%m%d')}_full_ai.xlsx"
+                    st.session_state['last_result_filename'] = f"Nilai_{nama_ujian}_kelas_{kelas}_{group}_{DT_PR.strftime('%Y%m%d')}_full_ai.xlsx"
+                else:
+                    metadata["status"] = "failed"
+                    st.error("Jawaban siswa gagal dikoreksi. Silahkan coba lagi.")
+                
+                resp = repo.insert(
+                    "evaluation", metadata
+                )
+
+                if getattr(resp, "error", None):
+                    st.error("Insert failed")
+                else:
+                    data = resp.data if isinstance(resp.data, list) else [resp.data]
+                    if data and len(data) > 0:
+                        evaluation_id = data[0].get("evaluation_id") or data[0].get("id")
+
+                for question in upload_question:
+                    file_bytes = question.read()
+                    if question.type == "application/pdf":
+                        response = repo.upload_file(
+                            BUCKET_NAME,
+                            filepath=f"application/pdf/{DT_PR.strftime('%Y%m%d')}_{question.name}",
+                            file=file_bytes,
+                            file_options={"content-type": "application/pdf"}
+                        )
+
+                        file_path = response["path"]
+
+                        repo.insert(
+                            "evaluation_files", {
+                                "uploaded_at": DT_PR.isoformat(),
+                                "evaluation_id": evaluation_id,
+                                "file_path": file_path,
+                                "file_mime": "application/pdf"
+                            } 
+                        )
+                    elif question.type == "image/jpg":
+                        response = repo.upload_file(
+                            BUCKET_NAME,
+                            filepath=f"application/pdf/{DT_PR.strftime('%Y%m%d')}_{question.name}",
+                            file=file_bytes,
+                            file_options={"content-type": "image/jpeg"}
+                        )
+
+                        file_path = response["path"]
+
+                        repo.insert(
+                            "evaluation_files", {
+                                "uploaded_at": DT_PR.isoformat(),
+                                "evaluation_id": evaluation_id,
+                                "file_path": file_path,
+                                "file_mime": "image/jpeg"
+                            } 
+                        )
 
         if 'last_result_bytes' in st.session_state and st.session_state.get('last_result_filename', '').endswith('_full_ai.xlsx'):
             with st.expander("Show score"):

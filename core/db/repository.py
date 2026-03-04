@@ -6,6 +6,9 @@ class BaseRepository:
     def __init__(self):
         self.client = get_supabase()
 
+    def upload_file(self, bucket_name: str, filepath, file, file_options) -> Any:
+        return self.client.storage.from_(bucket_name).upload(filepath, file, file_options)
+
     def insert(self, table: str, data: Dict[str, Any]) -> Any:
         return self.client.table(table).insert(data).execute()
 

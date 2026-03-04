@@ -13,5 +13,3 @@ def render():
     # tambahan konten ekspor bisa diletakkan di sini
 
 
-if __name__ == "__main__":
-    render()
